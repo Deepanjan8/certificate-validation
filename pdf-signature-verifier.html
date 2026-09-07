@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDF Signature Verifier — CCA India Trust Chain</title>
+<style>
+  :root{
+    --accent:#146c6e;
+    --accent-dark:#0d4e50;
+    --bg:#f5f7f8;
+    --card:#ffffff;
+    --text:#1b2426;
+    --muted:#5b6b6d;
+    --border:#dde3e4;
+    --green:#1e8e5a;
+    --green-bg:#e7f6ee;
+    --red:#c13a2e;
+    --red-bg:#fbeceb;
+    --amber:#a86a12;
+    --amber-bg:#fdf3e3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.5;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px 80px;}
+  header{margin-bottom:22px;}
+  header h1{font-size:22px;margin:0 0 6px;color:var(--accent-dark);}
+  header p{margin:0;color:var(--muted);font-size:14px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:20px;
+    margin-bottom:18px;
+  }
+  .privacy{
+    font-size:13px;
+    color:var(--muted);
+    background:#eef6f5;
+    border:1px solid #cfe6e4;
+    border-radius:8px;
+    padding:10px 12px;
+    margin-bottom:18px;
+  }
+  .drop{
+    display:block;
+    border:2px dashed var(--border);
+    border-radius:10px;
+    padding:36px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .drop.drag{border-color:var(--accent);background:#eef6f5;}
+  .drop input{display:none;}
+  .drop .big{font-size:15px;font-weight:600;margin-bottom:4px;}
+  .drop .small{font-size:13px;color:var(--muted);}
+  button.btn{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:7px;
+    padding:9px 16px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  button.btn:hover{background:var(--accent-dark);}
+  button.btn.ghost{
+    background:transparent;
+    color:var(--accent-dark);
+    border:1px solid var(--border);
+  }
+  .status-banner{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    font-size:13px;
+    border-radius:8px;
+    padding:10px 12px;
+    margin-bottom:14px;
+  }
+  .status-banner.amber{background:var(--amber-bg);color:var(--amber);border:1px solid #f0d9ab;}
+  .status-banner.green{background:var(--green-bg);color:var(--green);border:1px solid #bfe4cf;}
+  .file-row{display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:6px;}
+  .spinner{
+    width:16px;height:16px;border-radius:50%;
+    border:2px solid #cdd7d8;border-top-color:var(--accent);
+    animation:spin .7s linear infinite;flex:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .result{border-radius:10px;padding:16px 18px;margin-bottom:14px;border:1px solid;}
+  .result.ok{background:var(--green-bg);border-color:#bfe4cf;}
+  .result.fail{background:var(--red-bg);border-color:#f0c6c1;}
+  .result.partial{background:var(--amber-bg);border-color:#f0d9ab;}
+  .result h3{margin:0 0 8px;font-size:16px;display:flex;align-items:center;gap:8px;}
+  .badge-icon{font-size:18px;line-height:1;}
+  .result .verdict{font-weight:600;}
+  .result dl{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:13.5px;margin:10px 0 4px;}
+  .result dl dt{color:var(--muted);}
+  .result dl dd{margin:0;word-break:break-word;}
+  details{margin-top:8px;font-size:13px;}
+  details summary{cursor:pointer;color:var(--accent-dark);}
+  details pre{
+    white-space:pre-wrap;word-break:break-word;
+    background:#00000008;padding:8px 10px;border-radius:6px;font-size:12px;
+  }
+  .doctype-chip{
+    display:inline-block;font-size:12px;background:#00000010;
+    padding:2px 8px;border-radius:100px;margin-top:4px;
+  }
+  footer{font-size:12px;color:var(--muted);text-align:center;margin-top:30px;}
+  .manual-load{margin-top:10px;font-size:13px;}
+  .manual-load input{margin-top:6px;}
+  .err-text{color:var(--red);font-size:13px;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>PDF Signature Verifier</h1>
+    <p>Cryptographically verifies digital signatures on Indian government PDFs (e‑Aadhaar, e‑PAN, ITR‑V, DigiLocker, e‑Gazette, eSign and other DSC‑signed documents) against the official CCA India trust chain.</p>
+  </header>
+
+  <div class="privacy">
+    🔒 Everything below runs locally in this browser tab. Your PDF is never uploaded anywhere — it never leaves your device. The only network activity this page ever makes is fetching the two public CCA India root certificates directly from <strong>cca.gov.in</strong> so it can check who ultimately vouches for your document's signature.
+  </div>
+
+  <div id="rootStatus"></div>
+
+  <div class="card">
+    <label class="drop" id="drop" for="fileInput">
+      <input type="file" id="fileInput" accept="application/pdf" multiple />
+      <div class="big">Drop a signed PDF here</div>
+      <div class="small">or</div>
+      <span class="btn" style="display:inline-block;margin-top:8px;pointer-events:none;">Browse files</span>
+      <div class="small" style="margin-top:10px;">Nothing is uploaded — verification happens entirely on this device.</div>
+    </label>
+  </div>
+
+  <div id="results"></div>
+
+  <footer>
+    Verification logic: PKCS#7 / CMS SignedData parsed with pkijs, hashed against the PDF's own ByteRange, chained to CCA India's published root certificates. No password is required — the signature itself is never encrypted inside these PDFs, even when the document body is.
+  </footer>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// Crypto libraries are loaded dynamically (not as static top-level imports).
+// A static import that fails (CDN blocked, offline, wrong path) would abort
+// this entire module before a single addEventListener below ever runs — so
+// the upload button, drag-drop, everything would silently do nothing, with
+// no visible clue why. Loading them as an awaited dynamic import means a
+// failure here is caught and shown on-page, and — critically — the file
+// picker wiring further down does not depend on this succeeding first.
+// ---------------------------------------------------------------------------
+let asn1js, pkijs;
+const libsReady = (async () => {
+  // Using jsdelivr's /+esm bundling endpoint rather than a guessed internal
+  // dist path -- it resolves whatever the package's real browser entry point
+  // is server-side, so it isn't tied to one exact folder layout.
+  asn1js = await import("https://cdn.jsdelivr.net/npm/asn1js@3/+esm");
+  pkijs = await import("https://cdn.jsdelivr.net/npm/pkijs@3/+esm");
+  pkijs.setEngine(
+    "browser",
+    new pkijs.CryptoEngine({ name: "browser", crypto: window.crypto, subtle: window.crypto.subtle })
+  );
+})();
+libsReady.catch((e) => {
+  document.getElementById("rootStatus").innerHTML =
+    `<div class="status-banner amber">⚠ <span>Could not load the crypto library from jsdelivr (${e.message}). ` +
+    `Check the internet connection on this device and reload the page — file selection still works below, ` +
+    `but nothing can be cryptographically verified until this loads.</span></div>`;
+});
+
+// Official CCA India root certificate URLs (published on cca.gov.in/root_certificate.html)
+const CCA_ROOT_URLS = [
+  { label: "CCA India 2022", url: "https://cca.gov.in/cca/sites/default/files/files/CCAIndia2022.cer" },
+  { label: "CCA India 2022 SPL", url: "https://cca.gov.in/cca/sites/default/files/files/CCAIndia2022SPL.cer" },
+];
+
+// Holds pkijs.Certificate objects we trust as roots (auto-fetched and/or manually supplied)
+let trustedCerts = [];
+let rootLoadNotes = [];
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+
+function bufToArrayBuffer(u8) {
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+}
+
+async function sha256Hex(arrayBuffer) {
+  const digest = await crypto.subtle.digest("SHA-256", arrayBuffer);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join(":");
+}
+
+// Pull a readable string out of an X.500 Name (subject/issuer) for a given attribute OID.
+function rdnValue(name, oid) {
+  if (!name || !name.typesAndValues) return null;
+  for (const tv of name.typesAndValues) {
+    if (tv.type === oid) {
+      try {
+        return tv.value.valueBlock.value;
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+const OID_CN = "2.5.4.3";
+const OID_O = "2.5.4.10";
+const OID_SIGNING_TIME = "1.2.840.113549.1.9.5";
+
+// Friendly names for the handful of signature algorithms CCA-licensed CAs
+// actually issue certificates under. Falls back to the raw OID otherwise.
+const ALGO_NAMES = {
+  "1.2.840.113549.1.1.5": "SHA-1 with RSA",
+  "1.2.840.113549.1.1.11": "SHA-256 with RSA",
+  "1.2.840.113549.1.1.12": "SHA-384 with RSA",
+  "1.2.840.10045.4.3.2": "SHA-256 with ECDSA",
+  "1.2.840.10045.4.3.3": "SHA-384 with ECDSA",
+};
+function algoName(oid) {
+  return ALGO_NAMES[oid] || oid;
+}
+
+function describeName(name) {
+  const cn = rdnValue(name, OID_CN);
+  const o = rdnValue(name, OID_O);
+  if (cn && o) return `${cn} (${o})`;
+  return cn || o || "(unreadable)";
+}
+
+// Best-effort, non-authoritative label of what kind of document this looks like.
+// This is only ever used for a friendly chip in the UI — it plays no role in the
+// actual trust decision, which comes solely from the cryptographic result below.
+function guessDocumentType(latin1Text) {
+  const rules = [
+    [/UIDAI|Aadhaar/i, "e-Aadhaar (UIDAI)"],
+    [/Income\s*Tax\s*Department|ITR-?V|Form\s*26AS/i, "Income Tax (ITR-V / Form 26AS)"],
+    [/Protean|NSDL e-?Gov|UTIITSL|e-?PAN/i, "e-PAN"],
+    [/DigiLocker/i, "DigiLocker document"],
+    [/e-?Gazette|Department of Publication/i, "e-Gazette"],
+    [/EPFO|Employees.?\s*Provident\s*Fund/i, "EPFO document"],
+  ];
+  for (const [re, label] of rules) {
+    if (re.test(latin1Text)) return label;
+  }
+  return "Unrecognized document type";
+}
+
+// ---------------------------------------------------------------------------
+// PDF signature extraction — locates every /ByteRange in the raw file and
+// derives (a) the exact bytes that were signed and (b) the DER-encoded
+// PKCS#7/CMS blob, using only byte offsets. This works even on encrypted
+// PDFs (e-PAN/ITR-V/Form 26AS use AES-128), because signature dictionaries'
+// /Contents value is never run through PDF string encryption, and /ByteRange
+// values are plain integers — never encrypted either. No password needed.
+// ---------------------------------------------------------------------------
+function extractSignatures(bytes) {
+  let text = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    text += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+
+  const found = [];
+  const re = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const br = [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10), parseInt(m[4], 10)];
+    const [b0, b1, b2, b3] = br;
+    if (b0 + b1 > bytes.length || b2 + b3 > bytes.length || b2 < b0 + b1) continue;
+
+    const signed = new Uint8Array(b1 + b3);
+    signed.set(bytes.subarray(b0, b0 + b1), 0);
+    signed.set(bytes.subarray(b2, b2 + b3), b1);
+
+    const gap = bytes.subarray(b0 + b1, b2);
+    let gapStr = "";
+    for (let i = 0; i < gap.length; i++) gapStr += String.fromCharCode(gap[i]);
+    // The gap is the hex-encoded signature value. Different signing tools land
+    // ByteRange either exactly on the hex digits, or on the enclosing < >
+    // delimiters -- handle both conventions robustly rather than assuming one.
+    let hex = gapStr.trim();
+    if (hex.startsWith("<")) hex = hex.slice(1);
+    if (hex.endsWith(">")) hex = hex.slice(0, -1);
+    hex = hex.replace(/[^0-9A-Fa-f]/g, "");
+    if (hex.length === 0 || hex.length % 2 !== 0) continue;
+    const der = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < der.length; i++) der[i] = parseInt(hex.substr(i * 2, 2), 16);
+
+    found.push({ byteRange: br, signedBytes: signed, der });
+  }
+  return found;
+}
+
+// ---------------------------------------------------------------------------
+// Root certificate loading
+// ---------------------------------------------------------------------------
+async function fetchCert(url) {
+  await libsReady;
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const buf = await res.arrayBuffer();
+  const asn1 = asn1js.fromBER(buf);
+  if (asn1.offset === -1) throw new Error("could not parse as X.509 DER");
+  return new pkijs.Certificate({ schema: asn1.result });
+}
+
+async function loadRootsAtStartup() {
+  const el = document.getElementById("rootStatus");
+  el.innerHTML = `<div class="status-banner amber"><span class="spinner"></span><span>Fetching CCA India root certificates from cca.gov.in…</span></div>`;
+
+  const outcomes = await Promise.allSettled(CCA_ROOT_URLS.map((r) => fetchCert(r.url)));
+  trustedCerts = [];
+  rootLoadNotes = [];
+  outcomes.forEach((o, i) => {
+    if (o.status === "fulfilled") {
+      trustedCerts.push(o.value);
+      rootLoadNotes.push(`✓ ${CCA_ROOT_URLS[i].label} loaded`);
+    } else {
+      rootLoadNotes.push(`✗ ${CCA_ROOT_URLS[i].label} failed: ${o.reason.message}`);
+    }
+  });
+
+  if (trustedCerts.length > 0) {
+    el.innerHTML = `<div class="status-banner green">✓ <span>${rootLoadNotes.join(" · ")}</span></div>`;
+  } else {
+    el.innerHTML = `
+      <div class="status-banner amber">
+        ⚠ <div>
+          Could not fetch the CCA India root certificates automatically (likely a network/CORS
+          restriction). Signatures below will still be checked mathematically, but the "is this
+          really CCA India–rooted" chain check will be skipped until you load a root manually.
+          <div class="manual-load">
+            Download a root certificate from the
+            <a href="https://cca.gov.in/root_certificate.html" target="_blank" rel="noopener">official CCA India page</a>
+            and load it here:
+            <input type="file" id="manualRoot" accept=".cer,.crt,.der" />
+          </div>
+        </div>
+      </div>`;
+    document.getElementById("manualRoot").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        await libsReady;
+        const buf = await f.arrayBuffer();
+        const asn1 = asn1js.fromBER(buf);
+        if (asn1.offset === -1) throw new Error("not a valid DER certificate");
+        const cert = new pkijs.Certificate({ schema: asn1.result });
+        trustedCerts.push(cert);
+        el.innerHTML = `<div class="status-banner green">✓ <span>Manually loaded root: ${describeName(cert.subject)}</span></div>`;
+      } catch (err) {
+        el.innerHTML += `<div class="err-text">Failed to load that file: ${err.message}</div>`;
+      }
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core verification of one signature block
+// ---------------------------------------------------------------------------
+async function verifySignature(sig) {
+  await libsReady;
+  const asn1 = asn1js.fromBER(bufToArrayBuffer(sig.der));
+  if (asn1.offset === -1) throw new Error("Could not parse the signature as ASN.1/DER — file may be corrupt.");
+
+  const contentInfo = new pkijs.ContentInfo({ schema: asn1.result });
+  if (contentInfo.contentType !== "1.2.840.113549.1.7.2") {
+    throw new Error("This is not a PKCS#7/CMS SignedData signature (unexpected contentType).");
+  }
+  const signedData = new pkijs.SignedData({ schema: contentInfo.content });
+
+  // Pass 1: pure signature math (messageDigest + cryptographic signature), no chain check.
+  let mathResult;
+  try {
+    mathResult = await signedData.verify({
+      signer: 0,
+      data: bufToArrayBuffer(sig.signedBytes),
+      extendedMode: true,
+    });
+  } catch (e) {
+    mathResult = { signatureVerified: false, error: e.message };
+  }
+
+  // Pass 2: full chain check against loaded CCA India roots, if we have any.
+  let chainResult = null;
+  if (trustedCerts.length > 0) {
+    try {
+      chainResult = await signedData.verify({
+        signer: 0,
+        data: bufToArrayBuffer(sig.signedBytes),
+        trustedCerts,
+        checkChain: true,
+        extendedMode: true,
+      });
+    } catch (e) {
+      chainResult = { signatureVerified: false, error: e.message };
+    }
+  }
+
+  // Signer certificate details (best-effort — never blocks the verdict above).
+  let signerInfo = {};
+  try {
+    const cert = signedData.certificates[0];
+    signerInfo.subject = describeName(cert.subject);
+    signerInfo.issuer = describeName(cert.issuer);
+    signerInfo.notBefore = cert.notBefore.value.toDateString();
+    signerInfo.notAfter = cert.notAfter.value.toDateString();
+    signerInfo.serial = [...new Uint8Array(cert.serialNumber.valueBlock.valueHex)]
+      .map((b) => b.toString(16).padStart(2, "0")).join(":");
+    signerInfo.fingerprint = await sha256Hex(cert.toSchema().toBER(false));
+    signerInfo.sigAlgo = algoName(cert.signatureAlgorithm.algorithmId);
+  } catch (e) {
+    signerInfo.error = e.message;
+  }
+
+  // Signing time, if the signer included it as a signed attribute (trustworthy —
+  // it is itself covered by the signature — as opposed to reading /M from the PDF).
+  let signingTime = null;
+  try {
+    const si = signedData.signerInfos[0];
+    const attr = si.signedAttrs.attributes.find((a) => a.type === OID_SIGNING_TIME);
+    if (attr) signingTime = attr.values[0].toDate().toString();
+  } catch (e) {
+    /* not present or not parseable — leave as null, non-fatal */
+  }
+
+  return { mathResult, chainResult, signerInfo, signingTime };
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function verdictFrom(mathResult, chainResult) {
+  const mathOk = mathResult && mathResult.signatureVerified === true;
+  if (!mathOk) {
+    return { level: "fail", icon: "❌", text: "Signature is INVALID — this document has been altered or is not genuinely signed." };
+  }
+  if (chainResult && chainResult.signatureVerified === true) {
+    return { level: "ok", icon: "✅", text: "Cryptographically verified — signed and chained to a trusted CCA India root." };
+  }
+  if (trustedCerts.length === 0) {
+    return { level: "partial", icon: "🟡", text: "Signature is mathematically valid, but the CCA India root chain could not be checked (see banner above)." };
+  }
+  return { level: "partial", icon: "🟡", text: "Signature is mathematically valid, but it could not be chained to a trusted CCA India root." };
+}
+
+function renderResult(index, total, sig, r, docTypeLabel) {
+  const v = verdictFrom(r.mathResult, r.chainResult);
+  const box = document.createElement("div");
+  box.className = "result " + v.level;
+
+  const rows = [];
+  if (r.signerInfo.subject) rows.push(["Signed by", r.signerInfo.subject]);
+  if (r.signerInfo.issuer) rows.push(["Issued by", r.signerInfo.issuer]);
+  if (r.signingTime) rows.push(["Signing time", r.signingTime]);
+  else rows.push(["Signing time", "not present as a signed attribute"]);
+  if (r.signerInfo.sigAlgo) rows.push(["Algorithm", r.signerInfo.sigAlgo]);
+  if (r.signerInfo.notBefore) rows.push(["Cert validity", `${r.signerInfo.notBefore} → ${r.signerInfo.notAfter}`]);
+
+  const errBits = [];
+  if (r.mathResult && r.mathResult.error) errBits.push("Signature check error: " + r.mathResult.error);
+  if (r.chainResult && r.chainResult.error) errBits.push("Chain check error: " + r.chainResult.error);
+
+  box.innerHTML = `
+    <h3><span class="badge-icon">${v.icon}</span> Signature ${index + 1} of ${total} — <span class="verdict">${v.text}</span></h3>
+    <span class="doctype-chip">Looks like: ${docTypeLabel}</span>
+    <dl>${rows.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join("")}</dl>
+    <details>
+      <summary>Technical details</summary>
+      <pre>Serial: ${r.signerInfo.serial || "n/a"}
+SHA-256 fingerprint: ${r.signerInfo.fingerprint || "n/a"}
+ByteRange: [${sig.byteRange.join(", ")}]
+${errBits.join("\n")}</pre>
+    </details>
+  `;
+  return box;
+}
+
+// ---------------------------------------------------------------------------
+// File handling / wiring
+// ---------------------------------------------------------------------------
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("fileInput");
+const resultsEl = document.getElementById("results");
+
+// Note: no JS click-to-open wiring here on purpose — the <label for="fileInput">
+// above triggers the native file picker by itself, in every browser, with zero
+// script dependency. Adding a second programmatic fileInput.click() here would
+// even risk opening two file dialogs at once.
+["dragenter", "dragover"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); })
+);
+["dragleave", "drop"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); })
+);
+drop.addEventListener("drop", (e) => handleFiles(e.dataTransfer.files));
+fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
+
+async function handleFiles(fileList) {
+  for (const file of fileList) {
+    const row = document.createElement("div");
+    row.className = "file-row";
+    row.innerHTML = `<span class="spinner"></span><span>Verifying <strong>${file.name}</strong>…</span>`;
+    resultsEl.prepend(row);
+
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let text = "";
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) text += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      const docType = guessDocumentType(text);
+
+      const sigs = extractSignatures(bytes);
+      row.remove();
+
+      if (sigs.length === 0) {
+        const box = document.createElement("div");
+        box.className = "result fail";
+        box.innerHTML = `<h3>❌ ${file.name} — No digital signature found</h3><p>This PDF doesn't contain a /ByteRange signature dictionary, so there's nothing to verify.</p>`;
+        resultsEl.prepend(box);
+        continue;
+      }
+
+      const header = document.createElement("div");
+      header.innerHTML = `<h3 style="margin:16px 0 6px;">${file.name}</h3>`;
+      resultsEl.prepend(header);
+
+      for (let i = 0; i < sigs.length; i++) {
+        const r = await verifySignature(sigs[i]);
+        resultsEl.insertBefore(renderResult(i, sigs.length, sigs[i], r, docType), header.nextSibling);
+      }
+    } catch (err) {
+      row.remove();
+      const box = document.createElement("div");
+      box.className = "result fail";
+      box.innerHTML = `<h3>❌ ${file.name} — Could not process this file</h3><p>${err.message}</p>`;
+      resultsEl.prepend(box);
+    }
+  }
+}
+
+loadRootsAtStartup();
+</script>
+</body>
+</html>
